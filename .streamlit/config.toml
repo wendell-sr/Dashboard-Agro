@@ -1,0 +1,7 @@
+[theme]
+base = "dark"
+primaryColor = "hsl(181, 37.60%, 69.20%)"
+backgroundColor = "hsl(210, 75.00%, 4.70%)"
+secondaryBackgroundColor = "hsl(211, 37.60%, 54.10%)"
+textColor = "hsl(0, 0.00%, 91.40%)"
+font = "sans serif"
