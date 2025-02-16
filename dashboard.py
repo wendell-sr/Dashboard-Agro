@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-def configure_locale():
+def configurar_localidade():
     """Configura o locale para pt_BR ou exibe aviso se não for possível."""
     try:
         locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
@@ -21,16 +21,16 @@ def configure_locale():
         except Exception:
             st.warning("Configuração de localidade pt_BR não encontrada. Valores serão exibidos sem formatação regional.")
 
-def format_currency(value):
+def formatar_moeda(valor):
     """Formata o valor numérico para o padrão monetário brasileiro."""
     try:
-        return locale.currency(value, grouping=True)
+        return locale.currency(valor, grouping=True)
     except Exception:
-        valor_formatado = f'{value:,.2f}'  # ex: 1,234.56
+        valor_formatado = f'{valor:,.2f}'  # ex: 1,234.56
         valor_formatado = valor_formatado.replace(',', 'v').replace('.', ',').replace('v', '.')
         return f'R$ {valor_formatado}'
 
-def get_theme_settings():
+def obter_configuracoes_tema():
     """Retorna as configurações do tema a partir do config.toml."""
     return {
         "primary_color": st.get_option('theme.primaryColor'),
@@ -41,12 +41,12 @@ def get_theme_settings():
     }
 
 @st.cache_data
-def load_data(data_path="dados.json"):
+def carregar_dados(caminho_dados="dados.json"):
     """Carrega e retorna os dados do arquivo JSON."""
-    if not os.path.exists(data_path):
-        st.error(f"Arquivo {data_path} não encontrado.")
+    if not os.path.exists(caminho_dados):
+        st.error(f"Arquivo {caminho_dados} não encontrado.")
         return {}
-    with open(data_path, "r", encoding="utf-8") as f:
+    with open(caminho_dados, "r", encoding="utf-8") as f:
         try:
             return json.load(f)
         except json.JSONDecodeError:
@@ -54,76 +54,76 @@ def load_data(data_path="dados.json"):
             return {}
 
 class Dashboard:
-    def __init__(self, data):
-        self.data = data
-        self.contracts = pd.DataFrame()
+    def __init__(self, dados):
+        self.dados = dados
+        self.contratos = pd.DataFrame()
         self.df_filtrado = pd.DataFrame()
         # Para armazenar os anos selecionados e adaptarmos o gráfico
-        self.selected_ano = None
+        self.ano_selecionado = None
 
-    def prepare_data(self):
+    def preparar_dados(self):
         """Normaliza os dados e converte colunas de data para formato datetime e string legível."""
-        if self.data and "contratos" in self.data:
-            self.contracts = pd.json_normalize(self.data["contratos"])
+        if self.dados and "contratos" in self.dados:
+            self.contratos = pd.json_normalize(self.dados["contratos"])
             # Converter para datetime e criar colunas formatadas no padrão DD-MM-YYYY
-            if "dataContratacao" in self.contracts.columns:
-                self.contracts["dataContratacao"] = pd.to_datetime(
-                    self.contracts["dataContratacao"], errors='coerce'
+            if "dataContratacao" in self.contratos.columns:
+                self.contratos["dataContratacao"] = pd.to_datetime(
+                    self.contratos["dataContratacao"], errors='coerce'
                 )
-                self.contracts["dataContratacaoFormatada"] = self.contracts["dataContratacao"].dt.strftime("%d-%m-%Y")
-            if "vencimentoContrato" in self.contracts.columns:
-                self.contracts["vencimentoContrato"] = pd.to_datetime(
-                    self.contracts["vencimentoContrato"], errors='coerce'
+                self.contratos["dataContratacaoFormatada"] = self.contratos["dataContratacao"].dt.strftime("%d-%m-%Y")
+            if "vencimentoContrato" in self.contratos.columns:
+                self.contratos["vencimentoContrato"] = pd.to_datetime(
+                    self.contratos["vencimentoContrato"], errors='coerce'
                 )
-                self.contracts["vencimentoContratoFormatado"] = self.contracts["vencimentoContrato"].dt.strftime("%d-%m-%Y")
+                self.contratos["vencimentoContratoFormatado"] = self.contratos["vencimentoContrato"].dt.strftime("%d-%m-%Y")
 
-    def render_filters(self):
+    def renderizar_filtros(self):
         """Renderiza os filtros na barra lateral utilizando o tema."""
-        theme = get_theme_settings()
-        st.sidebar.header("Filtros", help="Configurações de filtros", )
+        tema = obter_configuracoes_tema()
+        st.sidebar.header("Filtros", help="Configurações de filtros")
         
         # Filtro Cliente (geralmente único)
-        cliente = self.data.get("cliente", {}).get("nomeEmpresa", "Cliente não definido")
+        cliente = self.dados.get("cliente", {}).get("nomeEmpresa", "Cliente não definido")
         _ = st.sidebar.selectbox("Cliente", options=[cliente])
         
         # Filtro Sócio
-        socios = sorted(self.contracts["socioResponsavel"].unique())
+        socios = sorted(self.contratos["socioResponsavel"].unique())
         filtro_socio = st.sidebar.multiselect("Sócio", options=socios, default=socios)
         
         # Filtro Banco (se existir)
-        if "banco" in self.contracts.columns:
-            bancos = sorted(self.contracts["banco"].unique())
+        if "banco" in self.contratos.columns:
+            bancos = sorted(self.contratos["banco"].unique())
             filtro_banco = st.sidebar.multiselect("Banco", options=bancos, default=bancos)
         else:
             filtro_banco = None
         
         # Filtro Contrato
-        contratos = sorted(self.contracts["tipoContrato"].unique())
+        contratos = sorted(self.contratos["tipoContrato"].unique())
         filtro_contrato = st.sidebar.multiselect("Contrato", options=contratos, default=contratos)
         
         # Filtro Ano
-        if "dataContratacao" in self.contracts.columns:
-            anos = sorted(self.contracts["dataContratacao"].dropna().dt.year.unique())
+        if "dataContratacao" in self.contratos.columns:
+            anos = sorted(self.contratos["dataContratacao"].dropna().dt.year.unique())
             filtro_ano = st.sidebar.multiselect("Ano", options=anos, default=anos)
         else:
             filtro_ano = None
         
         # Armazenar o filtro de ano para uso no gráfico
-        self.selected_ano = filtro_ano
+        self.ano_selecionado = filtro_ano
         
         # Condições para filtragem dos contratos
-        cond = (self.contracts["socioResponsavel"].isin(filtro_socio)) & \
-               (self.contracts["tipoContrato"].isin(filtro_contrato))
+        cond = (self.contratos["socioResponsavel"].isin(filtro_socio)) & \
+               (self.contratos["tipoContrato"].isin(filtro_contrato))
         if filtro_banco is not None:
-            cond &= self.contracts["banco"].isin(filtro_banco)
+            cond &= self.contratos["banco"].isin(filtro_banco)
         if filtro_ano is not None:
-            cond &= self.contracts["dataContratacao"].dt.year.isin(filtro_ano)
+            cond &= self.contratos["dataContratacao"].dt.year.isin(filtro_ano)
             
-        self.df_filtrado = self.contracts[cond]
+        self.df_filtrado = self.contratos[cond]
 
-    def render_consolidated_table(self):
+    def renderizar_tabela_consolidada(self):
         """Exibe a tabela consolidada com as configurações do tema."""
-        theme = get_theme_settings()
+        tema = obter_configuracoes_tema()
         consolidado = self.df_filtrado.groupby("socioResponsavel", as_index=False).agg(
             Quantidade_Contratos=('valorTotal', 'count'),
             Total_Divida=('valorTotal', 'sum')
@@ -133,42 +133,42 @@ class Dashboard:
             'Quantidade_Contratos': 'Qtd. Contratos',
             'Total_Divida': 'Valor Total da Dívida'
         }, inplace=True)
-        consolidado["Valor Total da Dívida"] = consolidado["Valor Total da Dívida"].apply(format_currency)
+        consolidado["Valor Total da Dívida"] = consolidado["Valor Total da Dívida"].apply(formatar_moeda)
         st.subheader("Dívida Total - Cliente")
         st.dataframe(consolidado)
 
-    def render_summary(self):
+    def renderizar_resumo(self):
         """Exibe as métricas resumidas utilizando o tema."""
         total_divida = self.df_filtrado["valorTotal"].sum()
         st.subheader("Resumo")
-        st.metric(label="Total da Dívida (R$)", value=format_currency(total_divida))
+        st.metric(label="Total da Dívida (R$)", value=formatar_moeda(total_divida))
 
-    def render_charts(self):
+    def renderizar_graficos(self):
         """Exibe os gráficos com valores como rótulos e com cores/fonte definidas no tema."""
-        theme = get_theme_settings()
+        tema = obter_configuracoes_tema()
         # Gráfico 1: Dívida Total por Banco
         divida_por_banco = self.df_filtrado.groupby("banco", as_index=False)["valorTotal"].sum()
-        graf_banco = alt.Chart(divida_por_banco).mark_bar(color=theme["primary_color"]).encode(
+        graf_banco = alt.Chart(divida_por_banco).mark_bar(color=tema["primary_color"]).encode(
             x=alt.X('banco:N', title='Banco',
-                    axis=alt.Axis(labelColor=theme["text_color"], titleColor=theme["text_color"],
-                                  labelFont=theme["font"], titleFont=theme["font"])),
+                    axis=alt.Axis(labelAngle=0,labelColor=tema["text_color"], titleColor=tema["text_color"],
+                                  labelFont=tema["font"], titleFont=tema["font"])),
             y=alt.Y('valorTotal:Q',
-                    axis=alt.Axis(labels=False, ticks=False, title='Dívida Total (R$)',
-                                  titleColor=theme["text_color"], titleFont=theme["font"]))
+                    axis=alt.Axis(grid=False, labels=False, ticks=False, title='Dívida Total (R$)',
+                                  titleColor=tema["text_color"], titleFont=tema["font"]))
         )
         texto_banco = alt.Chart(divida_por_banco).mark_text(
             align='center',
             baseline='middle',
             dy=-10,
-            color=theme["text_color"],
-            font=theme["font"]
+            color=tema["text_color"],
+            font=tema["font"]
         ).encode(
             x=alt.X('banco:N'),
             y=alt.Y('valorTotal:Q'),
             text=alt.Text('valorTotal:Q', format=',.2f')
         )
         graf_banco_layer = alt.layer(graf_banco, texto_banco).properties(
-            title=alt.TitleParams(text="Total de Dívida por Banco", color=theme["text_color"], font=theme["font"]),
+            title=alt.TitleParams(text="Total de Dívida por Banco", color=tema["text_color"], font=tema["font"]),
             width=600
         )
         st.altair_chart(graf_banco_layer, use_container_width=True)
@@ -176,78 +176,134 @@ class Dashboard:
         # Gráfico 2: Valor Total de Parcelas
         if "dataContratacao" in self.df_filtrado.columns:
             df_temp = self.df_filtrado.copy()
-            if self.selected_ano is not None and len(self.selected_ano) == 1:
+            if self.ano_selecionado is not None and len(self.ano_selecionado) == 1:
                 df_temp["Mes"] = df_temp["dataContratacao"].dt.month
                 agrupado = df_temp.groupby("Mes", as_index=False)["valorTotal"].sum()
-                months_pt = {
+                meses_pt = {
                     1: "Janeiro", 2: "Fevereiro", 3: "Março", 4: "Abril",
                     5: "Maio", 6: "Junho", 7: "Julho", 8: "Agosto",
                     9: "Setembro", 10: "Outubro", 11: "Novembro", 12: "Dezembro"
                 }
-                agrupado["MesNome"] = agrupado["Mes"].map(months_pt)
+                agrupado["NomeMes"] = agrupado["Mes"].map(meses_pt)
                 agrupado.sort_values("Mes", inplace=True)
-                graf_parcelas_line = alt.Chart(agrupado).mark_line(point=True, color=theme["primary_color"]).encode(
-                    x=alt.X('MesNome:N', title='Mês', sort=list(months_pt.values()),
-                            axis=alt.Axis(labelColor=theme["text_color"], titleColor=theme["text_color"],
-                                          labelFont=theme["font"], titleFont=theme["font"])),
+                graf_parcelas_line = alt.Chart(agrupado).mark_line(point=True, color=tema["primary_color"]).encode(
+                    x=alt.X('NomeMes:N', title='Mês', sort=list(meses_pt.values()),
+                            axis=alt.Axis(labelColor=tema["text_color"], titleColor=tema["text_color"],
+                                          labelFont=tema["font"], titleFont=tema["font"])),
                     y=alt.Y('valorTotal:Q',
                             axis=alt.Axis(labels=False, ticks=False, title='Valor Total (R$)',
-                                          titleColor=theme["text_color"], titleFont=theme["font"]))
+                                          titleColor=tema["text_color"], titleFont=tema["font"]))
                 )
                 texto_parcelas = alt.Chart(agrupado).mark_text(
                     align='center',
                     baseline='bottom',
                     dy=-10,
-                    color=theme["text_color"],
-                    font=theme["font"]
+                    color=tema["text_color"],
+                    font=tema["font"]
                 ).encode(
-                    x=alt.X('MesNome:N'),
+                    x=alt.X('NomeMes:N'),
                     y=alt.Y('valorTotal:Q'),
                     text=alt.Text('valorTotal:Q', format=',.2f')
                 )
                 graf_parcelas_layer = alt.layer(graf_parcelas_line, texto_parcelas).properties(
-                    title=alt.TitleParams(text="Valor Total de Parcelas por Mês", color=theme["text_color"], font=theme["font"]),
+                    title=alt.TitleParams(text="Valor Total de Parcelas por Mês", color=tema["text_color"], font=tema["font"]),
                     width=600
                 )
             else:
                 df_temp["Ano"] = df_temp["dataContratacao"].dt.year.astype(int)
                 agrupado = df_temp.groupby("Ano", as_index=False)["valorTotal"].sum()
-                graf_parcelas_line = alt.Chart(agrupado).mark_line(point=True, color=theme["primary_color"]).encode(
-                    x=alt.X('Ano:O', title='Ano',
-                            axis=alt.Axis(labelColor=theme["text_color"], titleColor=theme["text_color"],
-                                          labelFont=theme["font"], titleFont=theme["font"])),
-                    y=alt.Y('valorTotal:Q',
-                            axis=alt.Axis(labels=False, ticks=False, title='Valor Total (R$)',
-                                          titleColor=theme["text_color"], titleFont=theme["font"]))
+                graf_parcelas_line = alt.Chart(agrupado).mark_line(point=True, color=tema["primary_color"]).encode(
+                    x=alt.X(
+                        'Ano:O', 
+                        title='Ano',
+                        axis=alt.Axis(
+                            labelColor=tema["text_color"],
+                            titleColor=tema["text_color"],
+                            labelFont=tema["font"],
+                            titleFont=tema["font"],
+                            labelAngle=0,
+                            grid=False
+                        )
+                    ),
+                    y=alt.Y(
+                        'valorTotal:Q',
+                        axis=alt.Axis(
+                            labels=False,
+                            ticks=False,
+                            title='Valor Total (R$)',
+                            titleColor=tema["text_color"],
+                            titleFont=tema["font"],
+                            grid=False
+                        )
+                    )
                 )
                 texto_parcelas = alt.Chart(agrupado).mark_text(
                     align='center',
                     baseline='bottom',
                     dy=-10,
-                    color=theme["text_color"],
-                    font=theme["font"]
+                    color=tema["text_color"],
+                    font=tema["font"]
                 ).encode(
                     x=alt.X('Ano:O'),
                     y=alt.Y('valorTotal:Q'),
                     text=alt.Text('valorTotal:Q', format=',.2f')
                 )
                 graf_parcelas_layer = alt.layer(graf_parcelas_line, texto_parcelas).properties(
-                    title=alt.TitleParams(text="Valor Total de Parcelas por Ano", color=theme["text_color"], font=theme["font"]),
+                    title=alt.TitleParams(
+                        text="Valor Total de Parcelas por Ano",
+                        color=tema["text_color"],
+                        font=tema["font"]
+                    ),
                     width=600
                 )
             st.altair_chart(graf_parcelas_layer, use_container_width=True)
         else:
             st.info("Coluna 'dataContratacao' não disponível para gerar o gráfico de parcelas.")
 
-    def render_detail_table(self):
-        """Exibe a tabela detalhada dos contratos filtrados."""
+    def renderizar_tabela_detalhada(self):
+        """Exibe a tabela detalhada dos contratos filtrados com as colunas reordenadas."""
         st.subheader("Tabela de Contratos Detalhada")
-        st.dataframe(self.df_filtrado)
+        df_detalhada = self.df_filtrado.copy()
+        
+        # Calcular a duração em anos, se as datas estiverem disponíveis
+        if "dataContratacao" in df_detalhada.columns and "vencimentoContrato" in df_detalhada.columns:
+            df_detalhada["Duração em Anos"] = (
+                (df_detalhada["vencimentoContrato"] - df_detalhada["dataContratacao"]).dt.days / 365
+            ).round(1)
+        
+        # Garantir que a coluna de número do contrato exista; caso não, criar com valor padrão
+        if "numeroContrato" not in df_detalhada.columns:
+            df_detalhada["numeroContrato"] = "Não definido"
+        
+        # Reordenar e renomear as colunas conforme desejado
+        colunas_desejadas = [
+            "socioResponsavel", 
+            "banco", 
+            "numeroContrato", 
+            "dataContratacaoFormatada", 
+            "vencimentoContratoFormatado", 
+            "valorTotal", 
+            "Duração em Anos"
+        ]
+        df_detalhada = df_detalhada[colunas_desejadas]
+        df_detalhada = df_detalhada.rename(columns={
+            "socioResponsavel": "Sócio",
+            "banco": "Banco",
+            "numeroContrato": "Número do Contrato",
+            "dataContratacaoFormatada": "Data de Contratação",
+            "vencimentoContratoFormatado": "Vencimento do Contrato",
+            "valorTotal": "Valor Total"
+        })
+        
+        st.dataframe(df_detalhada)
 
-    def render_dashboard(self):
+    def renderizar_dashboard(self):
         """Renderiza o dashboard completo."""
-        st.title("Gestão de Endividamento")
-        self.render_filters()
+        st.markdown(
+            "<h1 style='text-align: center;'>Gestão de Endividamento</h1>",
+            unsafe_allow_html=True
+        )
+        self.renderizar_filtros()
 
         if self.df_filtrado.empty:
             st.warning("Nenhum dado encontrado com os filtros selecionados.")
@@ -256,22 +312,22 @@ class Dashboard:
         # Primeira linha: Resumo e Consolidado lado a lado
         col1, col2 = st.columns(2)
         with col1:
-            self.render_summary()
+            self.renderizar_resumo()
         with col2:
-            self.render_consolidated_table()
+            self.renderizar_tabela_consolidada()
 
         # Em seguida, gráficos
-        self.render_charts()
+        self.renderizar_graficos()
 
         # Por fim, a tabela detalhada
-        self.render_detail_table()
+        self.renderizar_tabela_detalhada()
 
 if __name__ == "__main__":
-    configure_locale()
-    data = load_data()
-    if data and "contratos" in data:
-        dashboard = Dashboard(data)
-        dashboard.prepare_data()
-        dashboard.render_dashboard()
+    configurar_localidade()
+    dados = carregar_dados()
+    if dados and "contratos" in dados:
+        dashboard = Dashboard(dados)
+        dashboard.preparar_dados()
+        dashboard.renderizar_dashboard()
     else:
         st.error("Não foi possível carregar os dados dos contratos.")
