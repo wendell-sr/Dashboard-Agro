@@ -6,7 +6,7 @@ import os
 import locale
 
 st.set_page_config(
-    page_title="Título do Dashboard",
+    page_title="AgroEasy - Gestão de Endividamento",
     page_icon=":chart_with_upwards_trend:",
     layout="wide"
 )
