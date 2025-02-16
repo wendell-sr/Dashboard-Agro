@@ -10,17 +10,6 @@ st.set_page_config(
     page_icon=":chart_with_upwards_trend:",
     layout="wide"
 )
-
-def configurar_localidade():
-    """Configura o locale para pt_BR ou exibe aviso se não for possível."""
-    try:
-        locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
-    except:
-        try:
-            locale.setlocale(locale.LC_ALL, 'Portuguese_Brazil.1252')
-        except Exception:
-            st.warning("Configuração de localidade pt_BR não encontrada. Valores serão exibidos sem formatação regional.")
-
 def formatar_moeda(valor):
     """Formata o valor numérico para o padrão monetário brasileiro."""
     try:
@@ -75,7 +64,7 @@ class Dashboard:
                 self.contratos["vencimentoContrato"] = pd.to_datetime(
                     self.contratos["vencimentoContrato"], errors='coerce'
                 )
-                self.contratos["vencimentoContratoFormatado"] = self.contratos["vencimentoContrato"].dt.strftime("%d-%m-%Y")
+                self.contratos["vencimentoContratoFormatada"] = self.contratos["vencimentoContrato"].dt.strftime("%d-%m-%Y")
 
     def renderizar_filtros(self):
         """Renderiza os filtros na barra lateral utilizando o tema."""
@@ -275,13 +264,17 @@ class Dashboard:
         if "numeroContrato" not in df_detalhada.columns:
             df_detalhada["numeroContrato"] = "Não definido"
         
+        # Formatar o valor total para o padrão de moeda real
+        if "valorTotal" in df_detalhada.columns:
+            df_detalhada["valorTotal"] = df_detalhada["valorTotal"].apply(formatar_moeda)
+        
         # Reordenar e renomear as colunas conforme desejado
         colunas_desejadas = [
             "socioResponsavel", 
             "banco", 
             "numeroContrato", 
             "dataContratacaoFormatada", 
-            "vencimentoContratoFormatado", 
+            "vencimentoContratoFormatada",  # nome correto
             "valorTotal", 
             "Duração em Anos"
         ]
@@ -291,7 +284,7 @@ class Dashboard:
             "banco": "Banco",
             "numeroContrato": "Número do Contrato",
             "dataContratacaoFormatada": "Data de Contratação",
-            "vencimentoContratoFormatado": "Vencimento do Contrato",
+            "vencimentoContratoFormatada": "Vencimento do Contrato",
             "valorTotal": "Valor Total"
         })
         
@@ -323,7 +316,6 @@ class Dashboard:
         self.renderizar_tabela_detalhada()
 
 if __name__ == "__main__":
-    configurar_localidade()
     dados = carregar_dados()
     if dados and "contratos" in dados:
         dashboard = Dashboard(dados)
